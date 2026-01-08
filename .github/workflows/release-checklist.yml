@@ -1,0 +1,101 @@
+name: Release Checklist
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'CHANGELOG.md'
+  workflow_dispatch:
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    name: Validate Release Files
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Check code formatting
+        run: cargo fmt -- --check
+
+      - name: Run clippy linter
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build project
+        run: cargo build --release
+
+      - name: Run tests
+        run: cargo test --all
+
+      - name: Verify Cargo.toml
+        run: cargo metadata --no-deps > /dev/null
+
+      - name: Check CHANGELOG.md exists
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "❌ CHANGELOG.md not found"
+            exit 1
+          fi
+          echo "✅ CHANGELOG.md exists"
+
+      - name: Validate version consistency
+        run: |
+          CARGO_VERSION=$(grep "^version" Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "📦 Cargo.toml version: $CARGO_VERSION"
+          if grep -q "## \[$CARGO_VERSION\]" CHANGELOG.md; then
+            echo "✅ Version found in CHANGELOG.md"
+          else
+            echo "⚠️  Warning: Version $CARGO_VERSION not found in CHANGELOG.md unreleased section"
+          fi
+
+      - name: Run security audit
+        run: |
+          if command -v cargo-audit &> /dev/null; then
+            cargo audit
+          else
+            echo "⚠️  cargo-audit not installed, skipping security audit"
+          fi
+
+      - name: Check for documentation
+        run: |
+          if [ ! -f README.md ]; then
+            echo "❌ README.md not found"
+            exit 1
+          fi
+          if [ ! -f CONTRIBUTING.md ]; then
+            echo "❌ CONTRIBUTING.md not found"
+            exit 1
+          fi
+          if [ ! -f SECURITY.md ]; then
+            echo "❌ SECURITY.md not found"
+            exit 1
+          fi
+          if [ ! -f PUBLISHING.md ]; then
+            echo "❌ PUBLISHING.md not found"
+            exit 1
+          fi
+          echo "✅ All required documentation files exist"
+
+      - name: Report status
+        if: success()
+        run: |
+          echo "✅ Release validation passed!"
+          echo "📋 Next steps:"
+          echo "1. Review CHANGELOG.md entries"
+          echo "2. Verify version in Cargo.toml"
+          echo "3. Create git tag: git tag -a vX.Y.Z -m 'Release X.Y.Z'"
+          echo "4. Push tag: git push origin vX.Y.Z"
+          echo "5. Create GitHub Release"
+          echo "6. Publish workflow will trigger automatically"
+
+      - name: Report failures
+        if: failure()
+        run: |
+          echo "❌ Release validation failed!"
+          echo "Please fix the issues above before releasing"
+          exit 1
