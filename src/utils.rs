@@ -1,0 +1,156 @@
+use colored::*;
+use std::{path::Path, process::{Command}, io::{self, Write}};
+
+// Constants
+const PROJECT_CONFIG_FILE: &str = "project.toml";
+const REQUIREMENTS_FILE: &str = "requirements.txt";
+const PYPI_API_URL: &str = "https://pypi.org/pypi";
+
+// Cross-platform path helpers
+#[cfg(target_os = "windows")]
+const PYTHON_EXE: &str = "python.exe";
+#[cfg(not(target_os = "windows"))]
+const PYTHON_EXE: &str = "python";
+
+#[cfg(target_os = "windows")]
+const PIP_EXE: &str = "pip.exe";
+#[cfg(not(target_os = "windows"))]
+const PIP_EXE: &str = "pip";
+
+#[cfg(target_os = "windows")]
+const VENV_BIN_DIR: &str = "Scripts";
+#[cfg(not(target_os = "windows"))]
+const VENV_BIN_DIR: &str = "bin";
+
+pub fn get_venv_python_path() -> String {
+    format!("./venv/{}/{}", VENV_BIN_DIR, PYTHON_EXE)
+}
+
+pub fn get_venv_pip_path() -> String {
+    format!("./venv/{}/{}", VENV_BIN_DIR, PIP_EXE)
+}
+
+pub fn get_venv_bin_dir() -> String {
+    format!("./venv/{}/", VENV_BIN_DIR)
+}
+
+pub fn get_project_config_file() -> &'static str {
+    PROJECT_CONFIG_FILE
+}
+
+pub fn get_requirements_file() -> &'static str {
+    REQUIREMENTS_FILE
+}
+
+pub fn eprint(msg: String) {
+    println!("{} {}", "error:".bright_red().bold(), msg.bright_red());
+}
+
+pub fn wprint(msg: String) {
+    println!("{} {}", "warning:".bright_yellow().bold(), msg.bright_yellow());
+}
+
+pub fn iprint(msg: String) {
+    println!("{} {}", "•".bright_green().bold(), msg.bright_green().bold());
+}
+
+pub fn project_exists(name: &String, is_init: bool) -> bool {
+    if is_init {
+        Path::new(get_project_config_file()).exists()
+    } else { Path::new(name).exists() && Path::new(&format!("{}/{}", name, get_project_config_file())).exists() }
+}
+pub fn check_venv_dir_exists() -> bool  {
+    Path::new(&get_venv_bin_dir()).exists()
+}
+
+pub fn get_pkg_version(pkg: &str) -> Result<String, String> {
+    let url = format!("{}/{}/json", PYPI_API_URL, pkg);
+    let resp = reqwest::blocking::get(&url)
+        .map_err(|e| format!("Failed to retrieve package version: {}", e))?;
+    
+    let json: serde_json::Value = resp.json()
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))?;
+    
+    let version = json["info"]["version"].as_str()
+        .ok_or_else(|| "Version field not found in response".to_string())?;
+    
+    Ok(version.to_string())
+}
+
+pub fn setup_venv(venv_path: String) -> Result<(), String> {
+    iprint("Setting Up Virtual Environment...".to_string());
+    let venv = Command::new("python")
+        .arg("-m")
+        .arg("venv")
+        .arg(&venv_path)
+        .output()
+        .map_err(|e| format!("Failed to execute python command: {}", e))?;
+    
+    if !venv.status.success() {
+        return Err(format!("Virtual environment creation failed: {}", 
+                          String::from_utf8_lossy(&venv.stderr)));
+    }
+    Ok(())
+}
+
+pub fn ask_if_create_venv() -> bool {
+    let mut answer = String::new();
+    print!("{}", "[?] Do you want to create a virtual environment? (y/n): ".green().bold());
+    io::stdout().flush().unwrap();
+    io::stdin().read_line(&mut answer).unwrap();
+    match answer.trim().to_lowercase().as_str() {
+        "y" => true,
+        "n" => false,
+        _ => {
+            println!("Invalid option");
+            ask_if_create_venv()
+        }
+    }
+}
+
+/// parse name and version of package if it was name==version
+pub fn parse_version(pkg: &str) -> (String, Option<String>) {
+    if let Some((name, version)) = pkg.split_once("==") {
+        (name.to_string(), Some(version.to_string()))
+    } else {
+        (pkg.to_string(), None)
+    }
+}
+
+/// Validate package name to prevent command injection
+fn validate_package_name(pkg: &str) -> Result<(), String> {
+    if pkg.is_empty() {
+        return Err("Package name cannot be empty".to_string());
+    }
+    // Basic validation: allow alphanumeric, hyphens, underscores, dots, and version specifiers
+    if pkg.chars().any(|c| !c.is_alphanumeric() && !"._-=<>~!".contains(c)) {
+        return Err(format!("Invalid package name: {}", pkg));
+    }
+    Ok(())
+}
+
+/// install the specified package
+pub fn install_package(pkg: &str) -> Result<(), String> {
+    if !check_venv_dir_exists() {
+        return Err("Virtual Environment Not Found".to_string());
+    }
+    
+    validate_package_name(pkg)?;
+    
+    iprint(format!("Installing '{}'", pkg));
+    let output = Command::new(get_venv_pip_path())
+        .arg("install")
+        .arg(pkg)
+        .output()
+        .map_err(|e| format!("Failed to execute pip: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!("Failed to install package: {}", 
+                          String::from_utf8_lossy(&output.stderr)));
+    }
+    
+    println!("{}", String::from_utf8_lossy(&output.stdout));
+    Ok(())
+}
+
+
