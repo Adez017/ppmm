@@ -293,6 +293,8 @@ Automatically bump the project version following semantic versioning.
 - `minor` - Increment minor version (1.0.0 → 1.1.0)
 - `patch` - Increment patch version (1.0.0 → 1.0.1)
 
+This command updates the version field in `project.toml` automatically. 
+
 **Features:**
 - Parses semantic versions (major.minor.patch)
 - Strips alpha/beta suffixes before bumping
