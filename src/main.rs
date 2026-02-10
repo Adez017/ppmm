@@ -34,5 +34,6 @@ fn main() {
         Action::Gen => ppm_functions::gen_requirements(),
         Action::Start => ppm_functions::start_project(),
         Action::Update => ppm_functions::update_packages(),
+        Action::List => ppm_functions::list_packages(),
     }
 }
