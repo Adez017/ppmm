@@ -8,15 +8,23 @@ pub struct Project {
     pub version: String,
     pub description: String,
     pub main_script: String,
+    pub venv: Option<String>,
 }
 
 impl Project {
-    pub fn new(name: String, version: String, description: String, main_script: String) -> Project {
+    pub fn new(
+        name: String,
+        version: String,
+        description: String,
+        main_script: String,
+        venv: Option<String>,
+    ) -> Project {
         Project {
             name,
             version,
             description,
             main_script,
+            venv,
         }
     }
 }
