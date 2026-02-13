@@ -668,6 +668,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Based on the PPM concept for streamlined Python project management.
 
+## 👥 Contributors
+Thanks to these amazing people for improving **ppmm**! 🚀
+
+<a href="https://github.com/sumangal44/ppmm/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=sumangal44/ppmm" />
+</a>
+
 ## Acknowledgments
 
 - Built with [Rust](https://www.rust-lang.org/)
@@ -680,9 +687,9 @@ Based on the PPM concept for streamlined Python project management.
 
 For issues, questions, or suggestions:
 
-- Open an [Issue](https://github.com/Sumangal44/python-project-manager/issues)
-- Check [Discussions](https://github.com/Sumangal44/python-project-manager/discussions)
-- Read the [Wiki](https://github.com/Sumangal44/python-project-manager/wiki)
+- Open an [Issue](https://github.com/Sumangal44/ppmm/issues)
+- Check [Discussions](https://github.com/Sumangal44/ppmm/discussions)
+- Read the [Wiki](https://github.com/Sumangal44/ppmm/wiki)
 
 ## Changelog
 
