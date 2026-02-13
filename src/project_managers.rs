@@ -39,6 +39,8 @@ pub enum Action {
     Build(BuildProject),
     /// Bump project version (major, minor, patch)
     Bump(BumpVersion),
+    /// List packages declared in project.toml
+    List,
 }
 
 pub struct ProjectCreator {

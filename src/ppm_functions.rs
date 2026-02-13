@@ -246,3 +246,41 @@ pub fn update_packages() {
         ));
     }
 }
+
+pub fn list_packages() {
+    let config_file = get_project_config_file();
+    if !Path::new(config_file).exists() {
+        eprint(format!("Could not find {}", config_file));
+        return;
+    }
+
+    let conf = match Config::load_from_file(config_file) {
+        Ok(conf) => conf,
+        Err(e) => {
+            eprint(e.to_string());
+            return;
+        }
+    };
+
+    let count = conf.packages.len();
+    
+    if count == 0 {
+        wprint("No packages configured".to_string());
+        return;
+    }
+
+    println!(
+        "\nConfigured packages ({}):",
+        count.to_string().green().bold()
+    );
+    
+    for (name, version) in conf.packages.iter() {
+        println!(
+            "{}=={}",
+            name.green().bold(),
+            version.bright_black()
+        );
+    }
+    
+    println!();
+}
