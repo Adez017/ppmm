@@ -26,16 +26,16 @@ const VENV_BIN_DIR: &str = "Scripts";
 #[cfg(not(target_os = "windows"))]
 const VENV_BIN_DIR: &str = "bin";
 
-pub fn get_venv_python_path() -> String {
-    format!("./venv/{}/{}", VENV_BIN_DIR, PYTHON_EXE)
+pub fn get_venv_python_path(venv_root: &str) -> String {
+    format!("./{}/{}/{}", venv_root, VENV_BIN_DIR, PYTHON_EXE)
 }
 
-pub fn get_venv_pip_path() -> String {
-    format!("./venv/{}/{}", VENV_BIN_DIR, PIP_EXE)
+pub fn get_venv_pip_path(venv_root: &str) -> String {
+    format!("./{}/{}/{}", venv_root, VENV_BIN_DIR, PIP_EXE)
 }
 
-pub fn get_venv_bin_dir() -> String {
-    format!("./venv/{}/", VENV_BIN_DIR)
+pub fn get_venv_bin_dir(venv_root: &str) -> String {
+    format!("./{}/{}/", venv_root, VENV_BIN_DIR)
 }
 
 pub fn get_project_config_file() -> &'static str {
@@ -71,12 +71,12 @@ pub fn project_exists(name: &String, is_init: bool) -> bool {
         Path::new(get_project_config_file()).exists()
     } else {
         Path::new(name).exists()
-            && Path::new(&format!("{}/{}", name, get_project_config_file())).exists()
+        && Path::new(&format!("{}/{}", name, get_project_config_file())).exists()
     }
 }
 
-pub fn check_venv_dir_exists() -> bool {
-    Path::new(&get_venv_bin_dir()).exists()
+pub fn check_venv_dir_exists(venv_root: &str) -> bool {
+    Path::new(&get_venv_bin_dir(venv_root)).exists()
 }
 
 pub fn get_pkg_version(pkg: &str) -> Result<String, String> {
@@ -154,15 +154,15 @@ fn validate_package_name(pkg: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn install_package(pkg: &str) -> Result<(), String> {
-    if !check_venv_dir_exists() {
+pub fn install_package(pkg: &str, venv_root: &str) -> Result<(), String> {
+    if !check_venv_dir_exists(venv_root) {
         return Err("Virtual Environment Not Found".to_string());
     }
 
     validate_package_name(pkg)?;
 
     iprint(format!("Installing '{}'", pkg));
-    let output = Command::new(get_venv_pip_path())
+    let output = Command::new(get_venv_pip_path(venv_root))
         .arg("install")
         .arg(pkg)
         .output()

@@ -104,6 +104,7 @@ impl ProjectCreator {
                     "./src/main.py"
                 }
                 .to_string(),
+                self.project.venv.clone(),
             ),
             HashMap::new(),
             HashMap::new(),
@@ -147,7 +148,12 @@ impl ProjectCreator {
         }
 
         if !self.project.no_venv {
-            if let Err(e) = setup_venv(self.get_path_with("venv")) {
+            let venv_path = self
+                .project
+                .venv
+                .clone()
+                .unwrap_or_else(|| "venv".to_string());
+            if let Err(e) = setup_venv(self.get_path_with(&venv_path)) {
                 eprint(format!("Failed to setup venv: {}", e));
                 return;
             }
@@ -180,6 +186,9 @@ pub struct ProjectConf {
     /// Set Project Description
     #[clap(short = 'd', long = "description", default_value = "")]
     description: String,
+    /// Set Virtual Environment Name
+    #[clap(long = "venv")]
+    venv: Option<String>,
     /// Enable Git
     #[clap(short = 'g', long = "git", takes_value = false)]
     git: bool,
@@ -217,10 +226,12 @@ impl AddPackage {
             }
         };
 
+        let venv_root = conf.project.venv.as_deref().unwrap_or("venv");
+
         for pkg_name in self.pkg_names.iter() {
             let (vname, ver) = parse_version(pkg_name);
 
-            match install_package(pkg_name) {
+            match install_package(pkg_name, venv_root) {
                 Ok(_) => {
                     let version = match ver {
                         Some(v) => v,
@@ -257,13 +268,13 @@ pub struct RemovePackage {
 }
 
 impl RemovePackage {
-    fn uninstall_package(&self, pkg: &str) -> Result<(), String> {
-        if !check_venv_dir_exists() {
+    fn uninstall_package(&self, pkg: &str, venv_root: &str) -> Result<(), String> {
+        if !check_venv_dir_exists(venv_root) {
             return Err("Virtual Environment Not Found".to_string());
         }
 
         iprint(format!("Uninstalling {}", pkg));
-        let output = Command::new(get_venv_pip_path())
+        let output = Command::new(get_venv_pip_path(venv_root))
             .arg("uninstall")
             .arg("-y")
             .arg(pkg)
@@ -296,13 +307,15 @@ impl RemovePackage {
             }
         };
 
+        let venv_root = conf.project.venv.clone().unwrap_or_else(|| "venv".to_string());
+
         for pkg_name in self.pkg_names.iter() {
             if !conf.packages.contains_key(pkg_name) {
                 eprint(format!("Package '{}' does not exist", pkg_name));
                 continue;
             }
 
-            match self.uninstall_package(pkg_name) {
+            match self.uninstall_package(pkg_name, &venv_root) {
                 Ok(_) => {
                     conf.packages.remove(pkg_name);
                     match conf.write_to_file(config_file) {
@@ -354,6 +367,8 @@ impl RunScript {
             }
         };
 
+        let venv_root = conf.project.venv.as_deref().unwrap_or("venv");
+
         let mut cmd = if cfg!(target_os = "windows") {
             let mut c = Command::new("cmd");
             c.arg("/C");
@@ -367,7 +382,7 @@ impl RunScript {
             return;
         };
 
-        cmd.env("PATH", get_venv_bin_dir());
+        cmd.env("PATH", get_venv_bin_dir(venv_root));
         cmd.arg(cmd_str);
 
         match cmd.spawn() {
@@ -392,10 +407,26 @@ pub struct Installer {
 
 impl Installer {
     fn install_from_req(&self) {
-        if !check_venv_dir_exists() {
-            wprint("Could not find venv directory".to_owned());
+        let config_file = get_project_config_file();
+        if !Path::new(config_file).exists() {
+            eprint(format!("Could not find {}", config_file));
+            return;
+        }
+
+        let mut conf = match Config::load_from_file(config_file) {
+            Ok(conf) => conf,
+            Err(e) => {
+                eprint(e.to_string());
+                return;
+            }
+        };
+
+        let venv_root = conf.project.venv.clone().unwrap_or_else(|| "venv".to_string());
+
+        if !check_venv_dir_exists(&venv_root) {
+            wprint(format!("Could not find '{}' directory", venv_root));
             if ask_if_create_venv() {
-                if let Err(e) = setup_venv("./venv".to_owned()) {
+                if let Err(e) = setup_venv(format!("./{}", venv_root)) {
                     eprint(format!("Failed to setup venv: {}", e));
                     return;
                 }
@@ -413,12 +444,6 @@ impl Installer {
             }
         };
 
-        let config_file = get_project_config_file();
-        if !Path::new(config_file).exists() {
-            eprint(format!("Could not find {}", config_file));
-            return;
-        }
-
         let pkg_names: Vec<&str> = req_file
             .lines()
             .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
@@ -429,18 +454,10 @@ impl Installer {
             return;
         }
 
-        let mut conf = match Config::load_from_file(config_file) {
-            Ok(conf) => conf,
-            Err(e) => {
-                eprint(e.to_string());
-                return;
-            }
-        };
-
         for pkg_name in pkg_names.iter() {
             let (vname, ver) = parse_version(pkg_name);
 
-            match install_package(pkg_name) {
+            match install_package(pkg_name, &venv_root) {
                 Ok(_) => {
                     let version = match ver {
                         Some(v) => v,
@@ -494,10 +511,12 @@ impl Installer {
             return;
         }
 
-        if !check_venv_dir_exists() {
-            wprint("Could not find venv directory".to_owned());
+        let venv_root = conf.project.venv.as_deref().unwrap_or("venv");
+
+        if !check_venv_dir_exists(venv_root) {
+            wprint(format!("Could not find '{}' directory", venv_root));
             if ask_if_create_venv() {
-                if let Err(e) = setup_venv("./venv".to_owned()) {
+                if let Err(e) = setup_venv(format!("./{}", venv_root)) {
                     eprint(format!("Failed to setup venv: {}", e));
                     return;
                 }
@@ -509,7 +528,7 @@ impl Installer {
 
         for (name, version) in conf.packages.iter() {
             let package_spec = format!("{}=={}", name, version);
-            match install_package(&package_spec) {
+            match install_package(&package_spec, venv_root) {
                 Ok(_) => iprint(format!("Package '{}' installed", name)),
                 Err(e) => eprint(format!("Failed to install '{}': {}", name, e)),
             }
@@ -548,6 +567,8 @@ impl BuildProject {
 
         iprint(format!("Building project: {}", conf.project.name));
 
+        let venv_root = conf.project.venv.as_deref().unwrap_or("venv");
+
         let mut cmd = if cfg!(target_os = "windows") {
             let mut c = Command::new("cmd");
             c.arg("/C");
@@ -561,7 +582,7 @@ impl BuildProject {
             return;
         };
 
-        cmd.env("PATH", get_venv_bin_dir());
+        cmd.env("PATH", get_venv_bin_dir(venv_root));
         cmd.arg(build_script);
 
         match cmd.spawn() {

@@ -19,7 +19,9 @@ pub fn show_project_info() {
     };
     println!();
 
-    match Command::new(get_venv_python_path())
+    let venv_root = conf.project.venv.as_deref().unwrap_or("venv");
+
+    match Command::new(get_venv_python_path(venv_root))
         .arg("--version")
         .output()
     {
@@ -131,6 +133,8 @@ pub fn start_project() {
         }
     };
 
+    let venv_root = conf.project.venv.as_deref().unwrap_or("venv");
+
     if !Path::new(&conf.project.main_script).exists() {
         eprint(format!(
             "Main script '{}' not found",
@@ -139,7 +143,7 @@ pub fn start_project() {
         return;
     }
 
-    let mut child = match Command::new(get_venv_python_path())
+    let mut child = match Command::new(get_venv_python_path(venv_root))
         .arg(&conf.project.main_script)
         .spawn()
     {
@@ -183,10 +187,12 @@ pub fn update_packages() {
         return;
     }
 
-    if !check_venv_dir_exists() {
-        wprint("Could not find venv directory".to_owned());
+    let venv_root = conf.project.venv.clone().unwrap_or_else(|| "venv".to_string());
+
+    if !check_venv_dir_exists(&venv_root) {
+        wprint(format!("Could not find '{}' directory", venv_root));
         if ask_if_create_venv() {
-            if let Err(e) = setup_venv("./venv".to_owned()) {
+            if let Err(e) = setup_venv(format!("./{}", venv_root)) {
                 eprint(format!("Failed to setup venv: {}", e));
                 return;
             }
@@ -218,7 +224,7 @@ pub fn update_packages() {
 
     for (name, ver) in updates {
         let package_spec = format!("{}=={}", name, ver);
-        match install_package(&package_spec) {
+        match install_package(&package_spec, &venv_root) {
             Ok(_) => {
                 updated_packages.push((name.clone(), ver));
                 iprint(format!("Updated {}", name));
